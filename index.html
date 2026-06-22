@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Options Greeks Visualizer</title>
+<script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:      #07070f;
+    --bg1:     #0c0c16;
+    --bg2:     #10101c;
+    --border:  #181828;
+    --border2: #20203a;
+    --text:    #ccd0e0;
+    --dim:     #4a4a68;
+    --accent:  #7df7c0;
+    --red:     #ff5252;
+    --blue:    #529cff;
+    --orange:  #ffaa44;
+    --purple:  #b255ff;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', ui-monospace, monospace;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ── Header ─────────────────────────────── */
+  .hdr {
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    padding: 9px 18px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-shrink: 0;
+  }
+  .hdr h1 { font-size: 12px; color: var(--accent); letter-spacing: .14em; text-transform: uppercase; }
+  .hdr-sub { font-size: 10px; color: var(--dim); }
+  .hdr-sub b { color: #666; }
+
+  /* ── Layout ──────────────────────────────── */
+  .layout { display: flex; flex: 1; overflow: hidden; }
+
+  /* ── Sidebar ─────────────────────────────── */
+  .sidebar {
+    width: 282px;
+    flex-shrink: 0;
+    background: var(--bg1);
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    padding: 13px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .sidebar::-webkit-scrollbar { width: 3px; }
+  .sidebar::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+  .sec { display: flex; flex-direction: column; gap: 7px; }
+
+  .sec-lbl {
+    font-size: 8.5px;
+    letter-spacing: .22em;
+    text-transform: uppercase;
+    color: var(--dim);
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 5px;
+  }
+
+  /* ── Presets ─────────────────────────────── */
+  .presets { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; }
+
+  .preset {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    color: var(--dim);
+    padding: 5px 4px;
+    border-radius: 3px;
+    cursor: pointer;
+    font: 9.5px/1.2 inherit;
+    text-align: center;
+    transition: border-color .12s, color .12s;
+  }
+  .preset:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* ── Leg cards ───────────────────────────── */
+  .leg {
+    background: var(--bg);
+    border: 1px solid var(--border2);
+    border-radius: 4px;
+    padding: 9px 10px;
+    position: relative;
+  }
+
+  .leg-row { display: flex; align-items: center; gap: 5px; margin-bottom: 8px; }
+
+  .pill {
+    padding: 3px 9px;
+    border-radius: 3px;
+    border: 1px solid;
+    cursor: pointer;
+    font: 9px/1 inherit;
+    font-weight: 700;
+    letter-spacing: .06em;
+    user-select: none;
+    transition: all .1s;
+  }
+  .pl { background: rgba(125,247,192,.07); border-color: rgba(125,247,192,.28); color: var(--accent); }
+  .ps { background: rgba(255,82,82,.07);  border-color: rgba(255,82,82,.28);  color: var(--red);    }
+  .pc { background: rgba(82,156,255,.07); border-color: rgba(82,156,255,.28); color: var(--blue);   }
+  .pp { background: rgba(255,170,68,.07); border-color: rgba(255,170,68,.28); color: var(--orange); }
+
+  .xbtn {
+    position: absolute;
+    top: 6px; right: 7px;
+    background: none; border: none;
+    color: var(--dim); cursor: pointer;
+    font-size: 15px; line-height: 1; opacity: .6;
+  }
+  .xbtn:hover { color: var(--red); opacity: 1; }
+
+  .leg-fields {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 5px;
+  }
+
+  .fld { display: flex; flex-direction: column; gap: 2px; }
+  .fld label { font-size: 8.5px; color: var(--dim); }
+  .fld input {
+    background: var(--bg2);
+    border: 1px solid var(--border2);
+    color: var(--text);
+    padding: 4px 6px;
+    border-radius: 3px;
+    font: 11px inherit;
+    width: 100%;
+  }
+  .fld input:focus { outline: none; border-color: rgba(125,247,192,.35); }
+
+  .add-btn {
+    background: none;
+    border: 1px dashed var(--border2);
+    color: var(--dim);
+    padding: 7px;
+    border-radius: 4px;
+    cursor: pointer;
+    font: 11px inherit;
+    width: 100%;
+    transition: all .14s;
+  }
+  .add-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* ── Sliders ─────────────────────────────── */
+  .param { display: flex; flex-direction: column; gap: 4px; }
+
+  .param-top {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+  }
+  .pname { color: var(--dim); }
+  .pval  { color: var(--accent); }
+
+  input[type=range] {
+    -webkit-appearance: none;
+    width: 100%; height: 3px;
+    background: var(--border2);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 12px; height: 12px;
+    background: var(--accent);
+    border-radius: 50%;
+    box-shadow: 0 0 5px rgba(125,247,192,.35);
+    transition: box-shadow .1s;
+  }
+  input[type=range]:active::-webkit-slider-thumb {
+    box-shadow: 0 0 9px rgba(125,247,192,.55);
+  }
+
+  /* ── Charts ──────────────────────────────── */
+  .charts-area {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px;
+    background: var(--bg);
+  }
+  .charts-area::-webkit-scrollbar { width: 3px; }
+  .charts-area::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+  @media (max-width: 1300px) { .grid { grid-template-columns: repeat(2, 1fr); } }
+
+  .chart-card {
+    background: var(--bg1);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    overflow: hidden;
+  }
+
+  .chart-hdr {
+    padding: 6px 11px;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    border-bottom: 1px solid var(--border);
+  }
+  .cdot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .clabel { font-size: 11px; font-weight: 700; }
+  .csub { font-size: 8.5px; color: var(--dim); margin-left: 2px; }
+  .cord {
+    margin-left: auto;
+    font-size: 8px;
+    padding: 1px 5px;
+    border-radius: 2px;
+    background: rgba(160,160,255,.06);
+    border: 1px solid rgba(160,160,255,.15);
+    color: #7777bb;
+  }
+
+  .empty-state {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--dim);
+    font-size: 12px;
+    letter-spacing: .05em;
+  }
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <h1>Options Greeks Visualizer</h1>
+  <span class="hdr-sub">Black-Scholes · European · <b>14 Greeks</b> · Drag sliders to explore</span>
+</div>
+
+<div class="layout">
+  <aside class="sidebar">
+
+    <div class="sec">
+      <div class="sec-lbl">Quick Structures</div>
+      <div class="presets">
+        <button class="preset" onclick="loadPreset('long_call')">Long Call</button>
+        <button class="preset" onclick="loadPreset('long_put')">Long Put</button>
+        <button class="preset" onclick="loadPreset('straddle')">Straddle</button>
+        <button class="preset" onclick="loadPreset('strangle')">Strangle</button>
+        <button class="preset" onclick="loadPreset('bull_call')">Bull Spread</button>
+        <button class="preset" onclick="loadPreset('bear_put')">Bear Spread</button>
+        <button class="preset" onclick="loadPreset('iron_condor')">Iron Condor</button>
+        <button class="preset" onclick="loadPreset('butterfly')">Butterfly</button>
+        <button class="preset" onclick="loadPreset('risk_rev')">Risk Reversal</button>
+        <button class="preset" onclick="loadPreset('synth_long')">Synth Long</button>
+        <button class="preset" onclick="loadPreset('ratio_call')">Ratio Call</button>
+        <button class="preset" onclick="loadPreset('jade_liz')">Jade Liz</button>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-lbl">Position Builder</div>
+      <div id="legs"></div>
+      <button class="add-btn" onclick="addLeg({})">＋ Add Leg</button>
+    </div>
+
+    <div class="sec">
+      <div class="sec-lbl">Market Parameters</div>
+
+      <div class="param">
+        <div class="param-top"><span class="pname">Spot Price (S)</span><span class="pval" id="v-s">100.00</span></div>
+        <input type="range" id="r-s" min="10" max="500" value="100" step="0.5" oninput="sync()">
+      </div>
+
+      <div class="param">
+        <div class="param-top"><span class="pname">Implied Vol (IV %)</span><span class="pval" id="v-iv">25.0%</span></div>
+        <input type="range" id="r-iv" min="1" max="150" value="25" step="0.5" oninput="sync()">
+      </div>
+
+      <div class="param">
+        <div class="param-top"><span class="pname">Risk-Free Rate (%)</span><span class="pval" id="v-r">5.00%</span></div>
+        <input type="range" id="r-r" min="0" max="25" value="5" step="0.1" oninput="sync()">
+      </div>
+
+      <div class="param">
+        <div class="param-top"><span class="pname">Days to Expiry (DTE)</span><span class="pval" id="v-t">30d</span></div>
+        <input type="range" id="r-t" min="1" max="730" value="30" step="1" oninput="sync()">
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-lbl">Chart Settings</div>
+
+      <div class="param">
+        <div class="param-top"><span class="pname">Spot Range (± %)</span><span class="pval" id="v-rng">40%</span></div>
+        <input type="range" id="r-rng" min="5" max="100" value="40" step="1" oninput="sync()">
+      </div>
+
+      <div class="param">
+        <div class="param-top"><span class="pname">Resolution (pts)</span><span class="pval" id="v-pts">150</span></div>
+        <input type="range" id="r-pts" min="30" max="400" value="150" step="10" oninput="sync()">
+      </div>
+    </div>
+
+  </aside>
+
+  <main class="charts-area">
+    <div class="grid" id="grid"></div>
+  </main>
+</div>
+
+<script>
+// ══════════════════════════════════════════════
+//  Math
+// ══════════════════════════════════════════════
+
+function erf(x) {
+  const s = x < 0 ? -1 : 1, a = Math.abs(x);
+  const t = 1 / (1 + 0.3275911 * a);
+  const y = 1 - (((((1.061405429*t - 1.453152027)*t) + 1.421413741)*t - 0.284496736)*t + 0.254829592)*t * Math.exp(-a*a);
+  return s * y;
+}
+const SQ2 = Math.sqrt(2), SQ2PI = Math.sqrt(2 * Math.PI);
+const Φ = x => 0.5 * (1 + erf(x / SQ2));
+const φ = x => Math.exp(-0.5*x*x) / SQ2PI;
+
+function d1d2(S, K, T, r, v) {
+  const sqT = Math.sqrt(T);
+  const d1 = (Math.log(S/K) + (r + 0.5*v*v)*T) / (v*sqT);
+  return { d1, d2: d1 - v*sqT, sqT };
+}
+
+// ══════════════════════════════════════════════
+//  Black-Scholes — First-order
+// ══════════════════════════════════════════════
+
+function price(S, K, T, r, v, cp) {
+  if (T < 1e-8) return Math.max(0, cp==='call' ? S-K : K-S);
+  const {d1,d2} = d1d2(S,K,T,r,v), df=Math.exp(-r*T);
+  return cp==='call' ? S*Φ(d1)-K*df*Φ(d2) : K*df*Φ(-d2)-S*Φ(-d1);
+}
+
+function delta(S, K, T, r, v, cp) {
+  if (T < 1e-8) { if(cp==='call') return S>=K?1:0; return S<=K?-1:0; }
+  return cp==='call' ? Φ(d1d2(S,K,T,r,v).d1) : Φ(d1d2(S,K,T,r,v).d1)-1;
+}
+
+function gamma(S, K, T, r, v) {
+  if (T < 1e-8) return 0;
+  const {d1,sqT} = d1d2(S,K,T,r,v);
+  return φ(d1) / (S*v*sqT);
+}
+
+function vegaRaw(S, K, T, r, v) {
+  if (T < 1e-8) return 0;
+  const {d1,sqT} = d1d2(S,K,T,r,v);
+  return S*φ(d1)*sqT;
+}
+
+function vega(S, K, T, r, v) { return vegaRaw(S,K,T,r,v)*0.01; }   // per 1%vol
+
+function theta(S, K, T, r, v, cp) {
+  if (T < 1e-8) return 0;
+  const {d1,d2,sqT} = d1d2(S,K,T,r,v), df=Math.exp(-r*T);
+  const base = -(S*φ(d1)*v)/(2*sqT);
+  return (base + (cp==='call' ? -r*K*df*Φ(d2) : r*K*df*Φ(-d2))) / 365;
+}
+
+function rho(S, K, T, r, v, cp) {
+  if (T < 1e-8) return 0;
+  const {d2} = d1d2(S,K,T,r,v), df=Math.exp(-r*T);
+  return (cp==='call' ? K*T*df*Φ(d2) : -K*T*df*Φ(-d2)) * 0.01;
+}
+
+// ══════════════════════════════════════════════
+//  Black-Scholes — Second-order (finite diff)
+// ══════════════════════════════════════════════
+
+const DT = 1/365, DV = 0.01, DREL = 0.005;
+
+// Charm = dDelta/dt (change in delta per 1 calendar day)
+function charm(S, K, T, r, v, cp) {
+  if (T < 2*DT) return 0;
+  return delta(S,K,T-DT,r,v,cp) - delta(S,K,T,r,v,cp);
+}
+
+// Vanna = dDelta/dVol = dVega/dS  (per 1%vol)
+function vanna(S, K, T, r, v, cp) {
+  if (T < 1e-8) return 0;
+  return (delta(S,K,T,r,v+DV,cp) - delta(S,K,T,r,v-DV,cp)) / (2*DV) * 0.01;
+}
+
+// Volga / Vomma = dVega/dVol  (per 1%vol²)
+function volga(S, K, T, r, v) {
+  if (T < 1e-8) return 0;
+  const {d1,d2,sqT} = d1d2(S,K,T,r,v);
+  return vegaRaw(S,K,T,r,v) * d1*d2/v * 0.0001; // per (1%vol)^2
+}
+
+// Veta = dVega/dt (change in vega per 1 calendar day)
+function veta(S, K, T, r, v) {
+  if (T < 2*DT) return 0;
+  return vega(S,K,T-DT,r,v) - vega(S,K,T,r,v);
+}
+
+// Speed = dGamma/dS
+function speed(S, K, T, r, v) {
+  if (T < 1e-8) return 0;
+  const dS = S*DREL;
+  return (gamma(S+dS,K,T,r,v) - gamma(S-dS,K,T,r,v)) / (2*dS);
+}
+
+// Color = dGamma/dt (change in gamma per 1 calendar day)
+function color(S, K, T, r, v) {
+  if (T < 2*DT) return 0;
+  return gamma(S,K,T-DT,r,v) - gamma(S,K,T,r,v);
+}
+
+// Zomma = dGamma/dVol (per 1%vol)
+function zomma(S, K, T, r, v) {
+  if (T < 1e-8) return 0;
+  return (gamma(S,K,T,r,v+DV) - gamma(S,K,T,r,v-DV)) / (2*DV) * 0.01;
+}
+
+// Ultima = d3V/dVol3  (via 3-point FD on volga)
+function ultima(S, K, T, r, v) {
+  if (T < 1e-8) return 0;
+  const {d1,d2} = d1d2(S,K,T,r,v);
+  const vr = vegaRaw(S,K,T,r,v);
+  return -vr/(v*v) * (d1*d2*(1-d1*d2) + d1*d1 + d2*d2) * 1e-6; // scaled
+}
+
+// Lambda = delta * S / price  (leverage)
+function lambda(S, K, T, r, v, cp) {
+  const p = price(S,K,T,r,v,cp);
+  if (p < 1e-4) return 0;
+  const val = delta(S,K,T,r,v,cp) * S / p;
+  return Math.max(-200, Math.min(200, val));
+}
+
+// ══════════════════════════════════════════════
+//  Greek registry
+// ══════════════════════════════════════════════
+
+const GREEKS = [
+  { id:'price',  label:'Price',   sub:'P&L value',          color:'#e2e5f5', order:1,
+    fn:(S,K,T,r,v,cp)=>price(S,K,T,r,v,cp) },
+  { id:'delta',  label:'Delta',   sub:'Δ = ∂V/∂S',          color:'#7df7c0', order:1,
+    fn:delta },
+  { id:'gamma',  label:'Gamma',   sub:'Γ = ∂²V/∂S²',        color:'#52a0ff', order:1,
+    fn:(S,K,T,r,v)=>gamma(S,K,T,r,v) },
+  { id:'theta',  label:'Theta',   sub:'Θ per day',           color:'#ff5252', order:1,
+    fn:theta },
+  { id:'vega',   label:'Vega',    sub:'ν per 1% vol',        color:'#ffaa44', order:1,
+    fn:(S,K,T,r,v)=>vega(S,K,T,r,v) },
+  { id:'rho',    label:'Rho',     sub:'ρ per 1% rate',       color:'#c255ff', order:1,
+    fn:rho },
+  { id:'charm',  label:'Charm',   sub:'dΔ/dt per day',       color:'#ff80b0', order:2,
+    fn:charm },
+  { id:'vanna',  label:'Vanna',   sub:'dΔ/dVol = dν/dS',    color:'#80ffd4', order:2,
+    fn:vanna },
+  { id:'volga',  label:'Volga',   sub:'Vomma · dν/dVol',    color:'#ffe044', order:2,
+    fn:(S,K,T,r,v)=>volga(S,K,T,r,v) },
+  { id:'veta',   label:'Veta',    sub:'dν/dt per day',       color:'#ff8833', order:2,
+    fn:(S,K,T,r,v)=>veta(S,K,T,r,v) },
+  { id:'speed',  label:'Speed',   sub:'dΓ/dS',               color:'#44ccff', order:2,
+    fn:(S,K,T,r,v)=>speed(S,K,T,r,v) },
+  { id:'color',  label:'Color',   sub:'dΓ/dt per day',       color:'#aa44ff', order:2,
+    fn:(S,K,T,r,v)=>color(S,K,T,r,v) },
+  { id:'zomma',  label:'Zomma',   sub:'dΓ/dVol',            color:'#ff44cc', order:2,
+    fn:(S,K,T,r,v)=>zomma(S,K,T,r,v) },
+  { id:'lambda', label:'Lambda',  sub:'Λ leverage ×',        color:'#aaaaff', order:2,
+    fn:lambda },
+];
+
+// ══════════════════════════════════════════════
+//  State
+// ══════════════════════════════════════════════
+
+let legs = [], lid = 0;
+
+const P = { S:100, iv:25, r:5, T:30, rng:40, pts:150 };
+
+// ══════════════════════════════════════════════
+//  Compute position greek over spot array
+// ══════════════════════════════════════════════
+
+function linspace(lo, hi, n) {
+  const a = new Array(n);
+  for (let i=0; i<n; i++) a[i] = lo + (hi-lo)*i/(n-1);
+  return a;
+}
+
+function posGreek(gfn, Sarr) {
+  return Sarr.map(S => {
+    let tot = 0;
+    for (const l of legs) {
+      const T = Math.max(l.T/365, 1e-7);
+      const v = Math.max(l.iv/100, 1e-4);
+      const r = P.r/100;
+      const sgn = l.long ? 1 : -1;
+      const val = gfn(S, l.K, T, r, v, l.type);
+      tot += sgn * l.qty * (isFinite(val) ? val : 0);
+    }
+    return tot;
+  });
+}
+
+function spotGreek(gfn) {
+  const S = P.S, r = P.r/100;
+  let tot = 0;
+  for (const l of legs) {
+    const T = Math.max(l.T/365, 1e-7);
+    const v = Math.max(l.iv/100, 1e-4);
+    const sgn = l.long ? 1 : -1;
+    const val = gfn(S, l.K, T, r, v, l.type);
+    tot += sgn * l.qty * (isFinite(val) ? val : 0);
+  }
+  return tot;
+}
+
+// ══════════════════════════════════════════════
+//  Charting
+// ══════════════════════════════════════════════
+
+const PCFG = { responsive:true, displayModeBar:false };
+
+function makeLayout(color) {
+  return {
+    paper_bgcolor:'transparent',
+    plot_bgcolor:'transparent',
+    height: 195,
+    font: { family:'SF Mono,Fira Code,monospace', size:9, color:'#4a4a68' },
+    margin: { l:44, r:8, t:6, b:30 },
+    showlegend: false,
+    hovermode: 'x unified',
+    hoverlabel: { bgcolor:'#10101c', bordercolor:color, font:{color:'#ccd0e0',size:10} },
+    xaxis: {
+      gridcolor:'#121220', zerolinecolor:'#1a1a2a',
+      tickfont:{size:8},
+    },
+    yaxis: {
+      gridcolor:'#121220', zerolinecolor:'#1a1a2a',
+      zeroline:true, zerolinewidth:1,
+      tickfont:{size:8},
+    },
+    shapes:[],
+  };
+}
+
+function initGrid() {
+  const g = document.getElementById('grid');
+  g.innerHTML = '';
+  GREEKS.forEach(gr => {
+    const card = document.createElement('div');
+    card.className = 'chart-card';
+    const badge = gr.order===2
+      ? `<span class="cord">2nd order</span>`
+      : `<span class="cord" style="color:#556655;border-color:rgba(80,120,80,.15);background:rgba(80,120,80,.04)">1st order</span>`;
+    card.innerHTML = `
+      <div class="chart-hdr">
+        <div class="cdot" style="background:${gr.color}"></div>
+        <span class="clabel" style="color:${gr.color}">${gr.label}</span>
+        <span class="csub">${gr.sub}</span>
+        ${badge}
+      </div>
+      <div id="plt-${gr.id}"></div>`;
+    g.appendChild(card);
+  });
+}
+
+function drawCharts() {
+  if (legs.length === 0) {
+    GREEKS.forEach(gr => {
+      const el = document.getElementById(`plt-${gr.id}`);
+      if (el && el._pi) { Plotly.purge(el); el._pi = false; }
+    });
+    return;
+  }
+
+  const { S:S0, rng, pts } = P;
+  const lo = S0*(1-rng/100), hi = S0*(1+rng/100);
+  const Sarr = linspace(lo, hi, pts);
+
+  GREEKS.forEach(gr => {
+    const el = document.getElementById(`plt-${gr.id}`);
+    if (!el) return;
+
+    const y = posGreek(gr.fn, Sarr);
+    const sv = spotGreek(gr.fn);
+    const yfin = y.filter(isFinite);
+    const ylo = yfin.length ? Math.min(...yfin) : -1;
+    const yhi = yfin.length ? Math.max(...yfin) :  1;
+    const pad = Math.max((yhi-ylo)*0.07, 1e-6);
+
+    const layout = makeLayout(gr.color);
+    layout.yaxis.range = [ylo-pad, yhi+pad];
+    layout.shapes = [
+      { type:'line', x0:lo, x1:hi, y0:0, y1:0,
+        line:{color:'#1a1a2e',width:1}, layer:'below' },
+      { type:'line', x0:S0, x1:S0, y0:ylo-pad, y1:yhi+pad,
+        line:{color:'rgba(255,255,255,0.12)',width:1,dash:'dot'} },
+    ];
+
+    const line = {
+      x:Sarr, y,
+      type:'scatter', mode:'lines',
+      line:{color:gr.color,width:2},
+      name:gr.label,
+      hovertemplate:`%{y:.5g}<extra></extra>`,
+    };
+    const dot = {
+      x:[S0], y:[sv],
+      type:'scatter', mode:'markers',
+      marker:{color:gr.color,size:6,symbol:'circle',
+              line:{color:'#07070f',width:1.5}},
+      hoverinfo:'skip',
+    };
+
+    if (el._pi) {
+      Plotly.react(el, [line, dot], layout, PCFG);
+    } else {
+      Plotly.newPlot(el, [line, dot], layout, PCFG);
+      el._pi = true;
+    }
+  });
+}
+
+// ══════════════════════════════════════════════
+//  Leg management
+// ══════════════════════════════════════════════
+
+function addLeg(cfg) {
+  legs.push({
+    id: ++lid,
+    type: cfg.type || 'call',
+    long: cfg.long !== false,
+    K:    cfg.K   ?? P.S,
+    T:    cfg.T   ?? P.T,
+    iv:   cfg.iv  ?? P.iv,
+    qty:  cfg.qty ?? 1,
+  });
+  renderLegs();
+  drawCharts();
+}
+
+function removeLeg(id) {
+  legs = legs.filter(l=>l.id!==id);
+  renderLegs();
+  drawCharts();
+}
+
+function setLeg(id, key, val) {
+  const l = legs.find(l=>l.id===id);
+  if (l) { l[key]=val; drawCharts(); }
+}
+
+function toggleDir(id) {
+  const l = legs.find(l=>l.id===id);
+  if (l) { l.long=!l.long; renderLegs(); drawCharts(); }
+}
+
+function toggleType(id) {
+  const l = legs.find(l=>l.id===id);
+  if (l) { l.type=l.type==='call'?'put':'call'; renderLegs(); drawCharts(); }
+}
+
+function renderLegs() {
+  const el = document.getElementById('legs');
+  el.innerHTML = '';
+  legs.forEach(l => {
+    const d = document.createElement('div');
+    d.className = 'leg';
+    d.innerHTML = `
+      <button class="xbtn" onclick="removeLeg(${l.id})">×</button>
+      <div class="leg-row">
+        <span class="pill ${l.long?'pl':'ps'}" onclick="toggleDir(${l.id})">${l.long?'LONG':'SHORT'}</span>
+        <span class="pill ${l.type==='call'?'pc':'pp'}" onclick="toggleType(${l.id})">${l.type.toUpperCase()}</span>
+      </div>
+      <div class="leg-fields">
+        <div class="fld"><label>Strike (K)</label>
+          <input type="number" value="${l.K}" step="0.5"
+            oninput="setLeg(${l.id},'K',+this.value)"></div>
+        <div class="fld"><label>Qty</label>
+          <input type="number" value="${l.qty}" min="0.01" step="0.1"
+            oninput="setLeg(${l.id},'qty',+this.value)"></div>
+        <div class="fld"><label>DTE (days)</label>
+          <input type="number" value="${l.T}" min="1" step="1"
+            oninput="setLeg(${l.id},'T',+this.value)"></div>
+        <div class="fld"><label>IV (%)</label>
+          <input type="number" value="${l.iv}" min="0.5" step="0.5"
+            oninput="setLeg(${l.id},'iv',+this.value)"></div>
+      </div>`;
+    el.appendChild(d);
+  });
+}
+
+// ══════════════════════════════════════════════
+//  Sync sliders → params → charts
+// ══════════════════════════════════════════════
+
+function sync() {
+  P.S   = +document.getElementById('r-s').value;
+  P.iv  = +document.getElementById('r-iv').value;
+  P.r   = +document.getElementById('r-r').value;
+  P.T   = +document.getElementById('r-t').value;
+  P.rng = +document.getElementById('r-rng').value;
+  P.pts = +document.getElementById('r-pts').value;
+
+  document.getElementById('v-s').textContent   = P.S.toFixed(2);
+  document.getElementById('v-iv').textContent  = P.iv.toFixed(1)+'%';
+  document.getElementById('v-r').textContent   = P.r.toFixed(2)+'%';
+  document.getElementById('v-t').textContent   = P.T+'d';
+  document.getElementById('v-rng').textContent = P.rng+'%';
+  document.getElementById('v-pts').textContent = P.pts;
+
+  drawCharts();
+}
+
+// ══════════════════════════════════════════════
+//  Presets
+// ══════════════════════════════════════════════
+
+const PRESETS = {
+  long_call:   [{ type:'call', long:true,  K:100, T:30, iv:25, qty:1 }],
+  long_put:    [{ type:'put',  long:true,  K:100, T:30, iv:25, qty:1 }],
+  straddle:    [{ type:'call', long:true,  K:100, T:30, iv:25, qty:1 },
+                { type:'put',  long:true,  K:100, T:30, iv:25, qty:1 }],
+  strangle:    [{ type:'call', long:true,  K:110, T:30, iv:25, qty:1 },
+                { type:'put',  long:true,  K:90,  T:30, iv:25, qty:1 }],
+  bull_call:   [{ type:'call', long:true,  K:95,  T:30, iv:25, qty:1 },
+                { type:'call', long:false, K:105, T:30, iv:25, qty:1 }],
+  bear_put:    [{ type:'put',  long:true,  K:105, T:30, iv:25, qty:1 },
+                { type:'put',  long:false, K:95,  T:30, iv:25, qty:1 }],
+  iron_condor: [{ type:'put',  long:true,  K:88,  T:30, iv:25, qty:1 },
+                { type:'put',  long:false, K:94,  T:30, iv:25, qty:1 },
+                { type:'call', long:false, K:106, T:30, iv:25, qty:1 },
+                { type:'call', long:true,  K:112, T:30, iv:25, qty:1 }],
+  butterfly:   [{ type:'call', long:true,  K:90,  T:30, iv:25, qty:1 },
+                { type:'call', long:false, K:100, T:30, iv:25, qty:2 },
+                { type:'call', long:true,  K:110, T:30, iv:25, qty:1 }],
+  risk_rev:    [{ type:'call', long:true,  K:105, T:30, iv:25, qty:1 },
+                { type:'put',  long:false, K:95,  T:30, iv:25, qty:1 }],
+  synth_long:  [{ type:'call', long:true,  K:100, T:30, iv:25, qty:1 },
+                { type:'put',  long:false, K:100, T:30, iv:25, qty:1 }],
+  ratio_call:  [{ type:'call', long:true,  K:100, T:30, iv:25, qty:1 },
+                { type:'call', long:false, K:105, T:30, iv:25, qty:2 }],
+  jade_liz:    [{ type:'put',  long:true,  K:85,  T:30, iv:25, qty:1 },
+                { type:'put',  long:false, K:90,  T:30, iv:25, qty:1 },
+                { type:'call', long:false, K:110, T:30, iv:25, qty:1 },
+                { type:'call', long:true,  K:115, T:30, iv:25, qty:1 }],
+};
+
+function loadPreset(name) {
+  const cfgs = PRESETS[name];
+  if (!cfgs) return;
+  legs = []; lid = 0;
+  cfgs.forEach(c => { legIdCounter=++lid; legs.push({id:lid,...c}); });
+  renderLegs();
+  drawCharts();
+}
+
+// ══════════════════════════════════════════════
+//  Bootstrap
+// ══════════════════════════════════════════════
+
+initGrid();
+sync();
+loadPreset('straddle');
+</script>
+</body>
+</html>
