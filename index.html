@@ -250,7 +250,7 @@
 
 <div class="hdr">
   <h1>Options Greeks Visualizer</h1>
-  <span class="hdr-sub">Black-Scholes · European · <b>14 Greeks</b> · Drag sliders to explore</span>
+  <span class="hdr-sub">Black-Scholes · European · <b>14 Greeks</b> · VCR skew model · Drag sliders to explore</span>
 </div>
 
 <div class="layout">
@@ -301,6 +301,24 @@
       <div class="param">
         <div class="param-top"><span class="pname">Days to Expiry (DTE)</span><span class="pval" id="v-t">30d</span></div>
         <input type="range" id="r-t" min="1" max="730" value="30" step="1" oninput="sync()">
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-lbl">Skew Model</div>
+
+      <div class="param">
+        <div class="param-top">
+          <span class="pname">Vol Change Ratio (VCR)</span>
+          <span class="pval" id="v-vcr">1.00×</span>
+        </div>
+        <input type="range" id="r-vcr" min="0" max="3" value="1" step="0.05" oninput="sync()">
+      </div>
+      <div style="font-size:8px;color:var(--dim);line-height:1.7;padding-top:2px">
+        <span style="color:#4a4a68">0.0</span> sticky delta &nbsp;·&nbsp;
+        <span style="color:var(--accent)">1.0</span> sticky strike &nbsp;·&nbsp;
+        <span style="color:var(--orange)">2.0+</span> equity skew
+        <br>v<sub>eff</sub>(S) = v₀ · (S/S₀)<sup>(1−VCR)</sup>
       </div>
     </div>
 
@@ -495,7 +513,7 @@ const GREEKS = [
 
 let legs = [], lid = 0;
 
-const P = { S:100, iv:25, r:5, T:30, rng:40, pts:150 };
+const P = { S:100, iv:25, r:5, T:30, rng:40, pts:150, vcr:1 };
 
 // ══════════════════════════════════════════════
 //  Compute position greek over spot array
@@ -507,12 +525,20 @@ function linspace(lo, hi, n) {
   return a;
 }
 
+// VCR (volatility change ratio): v_eff(S) = v₀ · (S/S₀)^(1−vcr)
+// VCR=1 → sticky strike (v unchanged); VCR=2 → vol falls with spot (equity skew)
+function vcrVol(legIvFrac, S) {
+  const exp = 1 - P.vcr;
+  if (Math.abs(exp) < 1e-9) return legIvFrac;
+  return Math.max(legIvFrac * Math.pow(S / P.S, exp), 1e-4);
+}
+
 function posGreek(gfn, Sarr) {
   return Sarr.map(S => {
     let tot = 0;
     for (const l of legs) {
       const T = Math.max(l.T/365, 1e-7);
-      const v = Math.max(l.iv/100, 1e-4);
+      const v = vcrVol(Math.max(l.iv/100, 1e-4), S);
       const r = P.r/100;
       const sgn = l.long ? 1 : -1;
       const val = gfn(S, l.K, T, r, v, l.type);
@@ -720,6 +746,7 @@ function sync() {
   P.iv  = +document.getElementById('r-iv').value;
   P.r   = +document.getElementById('r-r').value;
   P.T   = +document.getElementById('r-t').value;
+  P.vcr = +document.getElementById('r-vcr').value;
   P.rng = +document.getElementById('r-rng').value;
   P.pts = +document.getElementById('r-pts').value;
 
@@ -727,6 +754,7 @@ function sync() {
   document.getElementById('v-iv').textContent  = P.iv.toFixed(1)+'%';
   document.getElementById('v-r').textContent   = P.r.toFixed(2)+'%';
   document.getElementById('v-t').textContent   = P.T+'d';
+  document.getElementById('v-vcr').textContent = P.vcr.toFixed(2)+'×';
   document.getElementById('v-rng').textContent = P.rng+'%';
   document.getElementById('v-pts').textContent = P.pts;
 
